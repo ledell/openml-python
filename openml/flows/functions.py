@@ -23,7 +23,7 @@ def get_flow(flow_id):
         raise ValueError("Flow ID must be an int, got %s." % str(flow_id))
 
     flow_xml = openml._api_calls._perform_api_call("flow/%d" % flow_id)
-
+    print(flow_xml)
     flow_dict = xmltodict.parse(flow_xml)
     flow = OpenMLFlow._from_dict(flow_dict)
 
