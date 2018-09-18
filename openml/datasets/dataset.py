@@ -29,7 +29,7 @@ class OpenMLDataset(object):
         Name of the dataset
     description : str
         Description of the dataset
-    FIXME : which of these do we actually nee?
+    FIXME : which of these do we actually need?
     """
     def __init__(self, dataset_id=None, name=None, version=None, description=None,
                  format=None, creator=None, contributor=None,
@@ -74,6 +74,7 @@ class OpenMLDataset(object):
         self.data_file = data_file
         self.features = None
         self.qualities = None
+
 
         if features is not None:
             self.features = {}
@@ -147,6 +148,8 @@ class OpenMLDataset(object):
         """
         data = {'data_id': self.dataset_id, 'tag': tag}
         _perform_api_call("/data/untag", data=data)
+
+
 
     def __eq__(self, other):
         if type(other) != OpenMLDataset:
@@ -411,6 +414,8 @@ class OpenMLDataset(object):
             else:
                 if self.features[idx].data_type == data_type:
                     result.append(idx-offset)
+
+
         return result
 
     def publish(self):
@@ -469,7 +474,6 @@ class OpenMLDataset(object):
                     return False
             return True
         return True
-
 
 def _check_qualities(qualities):
     if qualities is not None:
