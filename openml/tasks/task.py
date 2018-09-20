@@ -8,24 +8,18 @@ from .._api_calls import _read_url, _perform_api_call
 
 
 class OpenMLTask(object):
-    def __init__(self, task_id, task_type_id, task_type, data_set_id, data_splits_url, estimation_procedure_type,
-                 estimation_parameters, evaluation_measure, cost_matrix):
+    def __init__(self, task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure):
         self.task_id = int(task_id)
         self.task_type_id = int(task_type_id)
         self.task_type = task_type
         self.dataset_id = int(data_set_id)
-        self.estimation_procedure["data_splits_url"] = data_splits_url
-        self.split = None
         self.estimation_procedure = dict()
         self.estimation_procedure["type"] = estimation_procedure_type
         self.estimation_procedure["parameters"] = estimation_parameters
         #
         self.estimation_parameters = estimation_parameters
         self.evaluation_measure = evaluation_measure
-        self.cost_matrix = cost_matrix
-
-        if cost_matrix is not None:
-            raise NotImplementedError("Costmatrix")
 
     def get_dataset(self):
         """Download dataset associated with task"""
@@ -34,6 +28,7 @@ class OpenMLTask(object):
     def download_split(self):
         """Download the OpenML split for a given task.
         """
+        # Not all tasks come with a split, e.g. in clustering the full dataset is always used
         if self.estimation_procedure["data_splits_url"]:
 
             cached_split_file = os.path.join(
@@ -50,8 +45,7 @@ class OpenMLTask(object):
 
             return split
 
-        else:
-            # Not all tasks come with a split, e.g. in clustering the full dataset is always used
+        else: # if no data splits are used
             no_split = {0: {0: {0: (list(range(self.get_dataset().get_data().shape[0])),
                                     list(range(self.get_dataset().get_data().shape[0])))}}}
             split = OpenMLSplit('no_split', 'no actual split, all points in train and test', no_split)
@@ -116,18 +110,34 @@ class OpenMLTask(object):
         return task_cache_dir
 
 class ClassificationTask(OpenMLTask):
-    def __init__(self, target_name, class_labels=None):
-        super().__init__(task_id, task_type_id, task_type, data_set_id, data_splits_url, estimation_procedure_type,
-                 estimation_parameters, evaluation_measure, cost_matrix)
+    def __init__(self, task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure, target_name, data_splits_url, class_labels=None, cost_matrix=None):
+        super().__init__(task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure)
         self.target_name = target_name
         self.class_labels = class_labels
+        self.cost_matrix = cost_matrix
+        self.estimation_procedure["data_splits_url"] = data_splits_url
+        self.split = None
 
+        if cost_matrix is not None:
+            raise NotImplementedError("Costmatrix")
+
+class RegressionTask(OpenMLTask):
+    def __init__(self, task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure, target_name, data_splits_url):
+        super().__init__(task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure)
+        self.target_name = target_name
+        self.estimation_procedure["data_splits_url"] = data_splits_url
+        self.split = None
 
 class ClusteringTask(OpenMLTask):
-    def __init__(self, number_of_targets):
-        super().__init__(task_id, task_type_id, task_type, data_set_id, data_splits_url, estimation_procedure_type,
-                         estimation_parameters, evaluation_measure, cost_matrix)
-        self.number_of_targets = number_of_targets
+    def __init__(self, task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure, number_of_clusters=None):
+        super().__init__(task_id, task_type_id, task_type, data_set_id, estimation_procedure_type,
+                 estimation_parameters, evaluation_measure)
+        self.number_of_clusters = number_of_clusters
 
 
 

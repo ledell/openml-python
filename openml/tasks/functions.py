@@ -173,6 +173,68 @@ def _list_tasks(task_type_id=None, **kwargs):
     return __list_tasks(api_call)
 
 
+def __list_tasks(api_call):
+
+    xml_string = _perform_api_call(api_call)
+    tasks_dict = xmltodict.parse(xml_string, force_list=('oml:task', 'oml:input'))
+    # Minimalistic check if the XML is useful
+    if 'oml:tasks' not in tasks_dict:
+        raise ValueError('Error in return XML, does not contain "oml:runs": %s'
+                         % str(tasks_dict))
+    elif '@xmlns:oml' not in tasks_dict['oml:tasks']:
+        raise ValueError('Error in return XML, does not contain '	
+                         '"oml:runs"/@xmlns:oml: %s'
+                         % str(tasks_dict))
+    elif tasks_dict['oml:tasks']['@xmlns:oml'] != 'http://openml.org/openml':
+        raise ValueError('Error in return XML, value of  '	
+                         '"oml:runs"/@xmlns:oml is not '	
+                         '"http://openml.org/openml": %s'
+                         % str(tasks_dict))
+    assert type(tasks_dict['oml:tasks']['oml:task']) == list, \
+        type(tasks_dict['oml:tasks'])
+
+    tasks = dict()
+    procs = _get_estimation_procedure_list()
+    proc_dict = dict((x['id'], x) for x in procs)
+    for task_ in tasks_dict['oml:tasks']['oml:task']:
+        tid = None
+        try:
+            tid = int(task_['oml:task_id'])
+            task = {'tid': tid,
+                    'ttid': int(task_['oml:task_type_id']),
+                    'did': int(task_['oml:did']),
+                    'name': task_['oml:name'],
+                    'task_type': task_['oml:task_type'],
+                    'status': task_['oml:status']}
+             # Other task inputs
+            for input in task_.get('oml:input', list()):
+                if input['@name'] == 'estimation_procedure':
+                    task[input['@name']] = proc_dict[int(input['#text'])]['name']
+                else:
+                    value = input.get('#text')
+                    task[input['@name']] = value
+             # The number of qualities can range from 0 to infinity
+            for quality in task_.get('oml:quality', list()):
+                if '#text' not in quality:
+                    quality_value = 0.0
+                else:
+                    quality['#text'] = float(quality['#text'])
+                    if abs(int(quality['#text']) - quality['#text']) < 0.0000001:
+                        quality['#text'] = int(quality['#text'])
+                    quality_value = quality['#text']
+                task[quality['@name']] = quality_value
+            tasks[tid] = task
+        except KeyError as e:
+            if tid is not None:
+                raise KeyError(
+                    "Invalid xml for task %d: %s\nFrom %s" % (
+                        tid, e, task_
+                    )
+                )
+            else:
+                raise KeyError('Could not find key %s in %s!' % (e, task_))
+    return tasks
+
 
 def get_tasks(task_ids):
     """Download tasks.
@@ -308,24 +370,47 @@ def _create_task_from_xml(xml):
 
 
     # Convert some more parameters
+    for parameter in \
+            inputs["estimation_procedure"]["oml:estimation_procedure"][
+                "oml:parameter"]:
+        name = parameter["@name"]
+        text = parameter.get("#text", "")
+        estimation_parameters[name] = text
 
-    if 'estimation_procedure' in inputs:
-        for parameter in \
-                inputs["estimation_procedure"]["oml:estimation_procedure"][
-                    "oml:parameter"]:
-            name = parameter["@name"]
-            text = parameter.get("#text", "")
-            estimation_parameters[name] = text
+    task_type = dic["oml:task_type"]
+    if(task_type = "Supervised Classification"):
+        return ClassificationTask(
+            dic["oml:task_id"],
+            dic["oml:task_type_id"],
+            task_type,
+            inputs["source_data"]["oml:data_set"]["oml:data_set_id"],
+            inputs["estimation_procedure"]["oml:estimation_procedure"]["oml:type"],
+            estimation_parameters,
+            evaluation_measures,
+            inputs["source_data"]["oml:data_set"]["oml:target_feature"],
+            inputs["estimation_procedure"]["oml:estimation_procedure"]["oml:data_splits_url"])
+
+    elif (task_type = "Supervised Regression"):
+        return RegressionTask(
+            dic["oml:task_id"],
+            dic["oml:task_type_id"],
+            task_type,
+            inputs["source_data"]["oml:data_set"]["oml:data_set_id"],
+            inputs["estimation_procedure"]["oml:estimation_procedure"]["oml:type"],
+            estimation_parameters,
+            evaluation_measures,
+            inputs["source_data"]["oml:data_set"]["oml:target_feature"],
+            inputs["estimation_procedure"]["oml:estimation_procedure"]["oml:data_splits_url"])
+
+    elif (task_type = "Clustering"):
+        return ClusteringTask(
+            dic["oml:task_id"],
+            dic["oml:task_type_id"],
+            task_type,
+            inputs["source_data"]["oml:data_set"]["oml:data_set_id"],
+            inputs["estimation_procedure"]["oml:estimation_procedure"]["oml:type"],
+            estimation_parameters,
+            evaluation_measures)
 
     else:
-        inputs["estimation_procedure"] = {'oml:estimation_procedure': {'oml:type': None, 'oml:data_splits_url': None}}
-
-    return ClassificationTask(
-        dic["oml:task_id"], dic['oml:task_type_id'], dic["oml:task_type"],
-        inputs["source_data"]["oml:data_set"]["oml:data_set_id"],
-        inputs["source_data"]["oml:data_set"]["oml:target_feature"],
-        inputs["estimation_procedure"]["oml:estimation_procedure"][
-            "oml:type"],
-        inputs["estimation_procedure"]["oml:estimation_procedure"][
-            "oml:data_splits_url"], estimation_parameters,
-        evaluation_measures, None)
+        raise NotImplementedError(task_type)
